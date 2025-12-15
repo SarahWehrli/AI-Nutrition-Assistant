@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+{% if goal %}
+<title>🍀 Recipes for "{{ goal }}"</title>
+{% else %}
+<title>🍀 Recipe Agent</title>
+{% endif %}
+
+<!-- Chart.js for nutrition widgets -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- Winwheel.js for the spinning recipe wheel -->
+<script src="https://cdn.jsdelivr.net/gh/zarocknz/javascript-winwheel/Winwheel.min.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
+
+<style>
+  :root {
+    --bg: #f1f8f4;
+    --card: #e9f5ec;
+    --text: #183a2b;
+    --accent: #2d6a4f;
+    --accent-2: #74c69d;
+    --line: #95d5b2;
+    --muted: #b7e4c7;
+    --warning-bg: #fff4f4;
+    --warning-border: #f8d7da;
+    --warning-text: #842029;
+  }
+  [data-theme="dark"] {
+    --bg: #0b1511;
+    --card: #0f1d17;
+    --text: #e9fff5;
+    --accent: #7ae7b3;
+    --accent-2: #9df0c9;
+    --line: #2b5f4a;
+    --muted: #265a46;
+    --warning-bg: #2b1212;
+    --warning-border: #5a1c1c;
+    --warning-text: #ffb4b4;
+  }
+
+  body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    color: var(--text);
+    background: radial-gradient(1200px 800px at 10% -10%, #d8f3dc33, transparent 60%),
+                radial-gradient(1200px 800px at 110% 10%, #b7e4c733, transparent 60%),
+                linear-gradient(180deg, var(--bg), var(--bg));
+    min-height: 100dvh;
+  }
+
+  .app-shell {
+    max-width: 1100px;
+    margin: 28px auto;
+    padding: 0 20px 80px;
+  }
+
+  header.hero {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .brand {
+    display: flex; gap: 12px; align-items: center;
+  }
+  .brand h1 {
+    font-size: clamp(1.6rem, 2.2vw + 1rem, 2.2rem);
+    color: var(--accent);
+    margin: 0;
+    letter-spacing: 0.2px;
+  }
+  .sparkle {
+    font-size: 1.6rem;
+    filter: drop-shadow(0 3px 6px rgba(0,0,0,0.15));
+    animation: wobble 2.8s ease-in-out infinite;
+  }
+  @keyframes wobble {
+    0%,100%{ transform: rotate(-6deg) scale(1); }
+    50%{ transform: rotate(6deg) scale(1.05); }
+  }
+
+  .controls { display: flex; gap: 8px; align-items: center; }
+  .btn, button, .tab {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform .08s ease, box-shadow .18s ease, background .2s ease;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+    user-select: none;
+  }
+  .btn:hover, button:hover, .tab:hover { transform: translateY(-1px); }
+  .btn:active, button:active, .tab:active { transform: translateY(0); box-shadow: 0 4px 10px rgba(0,0,0,0.12); }
+  .ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+
+  .tabs {
+    display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0 14px;
+  }
+  .tab {
+    background: linear-gradient(180deg, var(--accent), var(--accent));
+    padding: 10px 14px;
+    border-radius: 999px;
+    font-weight: 600;
+    opacity: .92;
+  }
+  .tab[aria-selected="true"] {
+    background: linear-gradient(180deg, var(--accent-2), var(--accent));
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.25), 0 6px 16px rgba(0,0,0,0.18);
+  }
+
+  .card {
+    background: color-mix(in srgb, var(--card) 88%, transparent);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 18px;
+    margin: 14px 0 18px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    backdrop-filter: blur(6px) saturate(1.05);
+  }
+  .card h2 {
+    margin: 0 0 10px;
+    color: var(--accent);
+    border-bottom: 2px dashed var(--line);
+    padding-bottom: 6px;
+  }
+.upload-section {
+  margin-top: 18px;
+  max-width: 480px;
+}
+
+.upload-dropzone {
+  border: 2px dashed var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  padding: 34px 20px;
+  text-align: center;
+  transition: all 0.25s ease;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-dropzone:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--card) 95%, var(--accent-2) 8%);
+}
+
+.upload-placeholder {
+  transition: opacity 0.3s ease;
+}
+
+.upload-icon {
+  font-size: 2.4rem;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));
+}
+
+.preview {
+  display: block;
+  width: 100%;
+  border-radius: 14px;
+  max-height: 260px;
+  object-fit: cover;
+  opacity: 0;
+  transform: scale(0.98);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.preview.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.upload-dropzone.dragover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-2) 30%, var(--card) 70%);
+}
+
+
+  .recipes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+  }
+  .recipe-block {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 14px;
+    box-shadow: 0 6px 16px rgba(0,0,0,.09);
+    cursor: pointer;
+    transition: transform .2s ease;
+  }
+  .recipe-block:hover { transform: translateY(-2px) scale(1.02); }
+  .recipe-title { margin: 8px 0 10px; color: var(--text); font-size: 1.1rem; }
+  img.recipe { width: 100%; border-radius: 12px; }
+
+  #tab-single-recipe img.recipe {
+    max-height: 380px;
+    object-fit: cover;
+    width: 100%;
+  }
+  #backToOverview { margin-bottom: 14px; }
+
+  .content {
+    display: none;
+    background: #ffffff10;
+    border: 1px dashed var(--line);
+    border-radius: 12px;
+    padding: 10px 14px;
+    margin-top: 6px;
+    white-space: pre-line;
+    line-height: 1.5;
+    font-size: 0.96rem;
+    overflow-wrap: break-word;
+  }
+
+  .warn {
+    background: var(--warning-bg); color: var(--warning-text);
+    border: 1px solid var(--warning-border);
+    text-align: center;
+  }
+
+  .float-emoji {
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: clamp(22px, 2vw + 12px, 32px);
+  line-height: 1;
+}
+
+
+  #loadingOverlay {
+    position: fixed; inset: 0;
+    background: rgba(255,255,255,.75);
+    backdrop-filter: blur(3px);
+    z-index: 9999; display: none; opacity: 0; pointer-events: none;
+    transition: opacity .25s ease;
+    color: var(--text);
+  }
+
+  
+  #loadingOverlay.visible { display:flex; opacity:1; pointer-events: all; }
+  .overlay-inner { margin: auto; text-align:center; }
+  .spinner { border: 6px solid var(--muted); border-top: 6px solid var(--accent); border-radius: 50%; width: 54px; height: 54px; animation: spin 1s linear infinite; margin: 0 auto 10px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .progress { height: 6px; background: var(--muted); border-radius: 999px; overflow: hidden; }
+  .bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .2s ease; }
+
+  .footer { text-align: center; margin-top: 24px; opacity: .8; }
+  .draggable { cursor: grab; }
+  .dragging { opacity: .6; cursor: grabbing; }
+  .float-emoji { position: fixed; pointer-events: none; z-index: 50; opacity: .75; filter: drop-shadow(0 3px 6px rgba(0,0,0,.2)); }
+</style>
+</head>
+<body>
+<div class="app-shell" id="app">
+  <header class="hero">
+    <div class="brand">
+      <div class="sparkle">🍀</div>
+      <h1>Recipe Agent</h1>
+    </div>
+    <div class="controls">
+      <button class="btn ghost" id="themeToggle" title="Toggle theme (T)">🌙/☀️</button>
+      <button class="btn" id="partyBtn" title="Celebrate (C)">🎉 Party</button>
+    </div>
+  </header>
+
+ <nav class="tabs" role="tablist">
+  <button class="tab" role="tab" aria-selected="true" data-tab="request">📝 Request</button>
+
+  {% if goal or memory.recipes_fetched or memory.ingredient_categories or memory.reflections %}
+    <button class="tab" role="tab" data-tab="goalIngredients">🥗 Goal & Ingredients</button>
+    <button class="tab" role="tab" data-tab="recipes">
+      🍽️ Recipes
+      {% if memory.recipes_fetched %}
+        <span style="margin-left:6px; background:#00000020; padding:2px 8px; border-radius:999px">
+          {{ memory.recipes_fetched|length }}
+        </span>
+      {% endif %}
+    </button>
+    <button class="tab" role="tab" data-tab="reflections">🪞 Reflections</button>
+  {% endif %}
+</nav>
+
+
+  <section class="card" id="tab-request" role="tabpanel">
+    <h2>📝 New Recipe Request</h2>
+    <form id="recipeForm" method="POST" action="/run" enctype="multipart/form-data">
+  <input style="width: min(720px, 90%); padding: 12px; border-radius: 10px; border: 1px solid var(--line); font-size: 1rem" 
+         type="text" name="goal" id="goalInput" placeholder="Type a new dish... (press Enter to generate)" />
+  <div class="upload-section">
+  <label for="ingredientImage" class="upload-label">
+    <div class="upload-dropzone" id="dropZone">
+      <div class="upload-placeholder" id="uploadPlaceholder">
+        <div class="upload-icon">📸</div>
+        <p><strong>Upload your ingredient photo</strong></p>
+        <p class="upload-hint">Drag & drop or click to select</p>
+      </div>
+      <img id="imagePreview" class="preview" alt="Preview" hidden />
+    </div>
+  </label>
+  <input type="file" id="ingredientImage" name="ingredient_image" accept="image/*" hidden />
+</div>
+
+  <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+    <button class="btn" type="submit">Generate</button>
+    <button class="btn ghost" type="button" id="lucky">I'm feeling saucy 🌶️</button>
+   <button class="btn ghost" id="wheelBtn" type="button" title="Spin a random cuisine + protein">
+  🎯 Wheel
+</button>
+
+  </div>
+</form>
+
+  </section>
+
+  {% if goal or memory.ingredient_categories %}
+<section class="card" id="tab-goalIngredients" role="tabpanel" hidden>
+  
+  <h2>🥗 Goal & Ingredients</h2>
+
+  {% if goal %}
+    <h3>🎯 Goal</h3>
+    <pre style="white-space: pre-wrap">{{ goal }}</pre>
+  {% endif %}
+
+  {% if memory.ingredient_categories %}
+    <h3 style="margin-top:18px;">🧂 Ingredient Overview</h3>
+    <ul style="columns: 2; gap: 26px; padding-left: 18px">
+      {% set emoji_map = {
+        "vegetable": "🥦", "fruit": "🍎", "protein": "🍗", "grain": "🌾", "dairy": "🧀",
+        "spice": "🧂", "herb": "🌿", "fat/oil": "🫒", "sweetener": "🍯", "other": "🍽️"
+      } %}
+      {% for ing, cat in memory.ingredient_categories.items() %}
+        <li><strong>{{ emoji_map.get(cat, '🍽️') }} {{ ing }}</strong> → <em>{{ cat }}</em></li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+</section>
+{% endif %}
+
+  {% if memory.recipes_fetched and memory.recipes_fetched|length > 0 %}
+  <section class="card" id="tab-recipes" role="tabpanel" hidden>
+    <h2>🍽️ Recipes</h2>
+    <div class="recipes-grid" id="recipesGrid">
+      {% for r in memory.recipes_fetched %}
+      <div class="recipe-block draggable" draggable="true" data-index="{{ loop.index0 }}" {% if r.ready_in_minutes %}data-ready="{{ r.ready_in_minutes }}"{% endif %}>
+        {% if r.image %}
+          <img class="recipe" src="{{ r.image }}" alt="Recipe image" />
+        {% endif %}
+        <h3 class="recipe-title">{{ r.title }}</h3>
+        {% if r.ready_in_minutes %}
+          <p style="margin:4px 0 6px; font-weight:600; color: var(--accent);">⏱️ {{ r.ready_in_minutes }} min</p>
+        {% endif %}
+        {% if r.summary %}
+          <p style="font-size:0.95em; opacity:0.9;">{{ r.summary | safe }}</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% else %}
+  <section class="card warn" id="tab-recipes" role="tabpanel" hidden>
+    <h2>❌ No Recipes Found</h2>
+    <p>Sorry, I couldn’t fetch any recipes for your request.</p>
+    <p>Please try rephrasing your query or use different ingredients 🍳</p>
+  </section>
+  {% endif %}
+
+  <!-- Single Recipe Tab -->
+  <section class="card" id="tab-single-recipe" role="tabpanel" hidden>
+    <button class="btn ghost" type="button" id="backToOverview">← Back to Recipes</button>
+    <button class="btn" type="button" id="downloadPDF">📄 Download PDF</button>
+    <div id="singleRecipeContent"></div>
+  </section>
+
+<section class="card" id="tab-reflections" role="tabpanel" hidden>
+  <h2>🪞 Reflections</h2>
+  {% if memory.reflections %}
+    <ul style="line-height:1.6; padding-left:20px;">
+      {% for r in memory.reflections %}
+        <li>{{ r }}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>No reflections yet.</p>
+  {% endif %}
+</section>
+
+</div>
+
+<div id="loadingOverlay">
+  <div class="overlay-inner">
+    <div class="spinner"></div>
+    <p>Generating your recipes... please wait 🍳</p>
+    <div class="progress"><div class="bar" id="progressBar"></div></div>
+  </div>
+</div>
+
+<!-- Spin Wheel Modal -->
+<div id="wheelModal" style="
+  display:none; 
+  position:fixed; 
+  inset:0; 
+  background:rgba(0,0,0,0.7);
+  z-index:10000; 
+  align-items:center; 
+  justify-content:center;">
+  <div style="background:var(--card); padding:20px; border-radius:16px; text-align:center; box-shadow:0 0 20px rgba(0,0,0,0.3)">
+    <h2 style="margin-bottom:12px;">🎡 Spin the Recipe Wheel!</h2>
+    <canvas id="recipeWheel" width="380" height="380"></canvas>
+    <div style="margin-top:14px;">
+      <button id="spinBtn" class="btn">Spin 🎯</button>
+      <button id="closeWheel" class="btn ghost">Close ✖️</button>
+    </div>
+  </div>
+</div>
+
+<script>
+
+// ============================================================================
+// Tab Management
+// ============================================================================
+const tabs = Array.from(document.querySelectorAll('.tab'));
+const panels = {
+  request: document.getElementById('tab-request'),
+  goalIngredients: document.getElementById('tab-goalIngredients'),
+  recipes: document.getElementById('tab-recipes'),
+  singleRecipe: document.getElementById('tab-single-recipe'),
+  reflections: document.getElementById('tab-reflections'),
+};
+function showTab(name) {
+  tabs.forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
+  Object.entries(panels).forEach(([k, el]) => { if(!el) return; el.hidden = k !== name; });
+}
+
+showTab('request');
+tabs.forEach(btn => btn.addEventListener('click', () => showTab(btn.dataset.tab)));
+
+// ============================================================================
+// Form Submission and Loading
+// ============================================================================
+const form = document.getElementById('recipeForm');
+const loadingOverlay = document.getElementById('loadingOverlay');
+const progressBar = document.getElementById('progressBar');
+if (form && loadingOverlay) {
+  form.addEventListener('submit', () => {
+    loadingOverlay.classList.add('visible');
+    let p = 0;
+    const id = setInterval(() => {
+      p = Math.min(95, p + Math.random()*7);
+      if (progressBar) progressBar.style.width = p + '%';
+    }, 180);
+    window.addEventListener('beforeunload', () => clearInterval(id));
+ 
+    setTimeout(() => {
+      if (fileInput) {
+        fileInput.value = '';
+
+        if (preview) {
+          preview.hidden = true;
+          preview.classList.remove('visible');
+        }
+        if (placeholder) {
+          placeholder.style.display = '';
+          placeholder.style.opacity = '1';
+        }
+      }
+    }, 100);
+  });
+}
+
+// ============================================================================
+// Lucky Button Handler
+// ============================================================================
+const lucky = document.getElementById('lucky');
+const goalInput = document.getElementById('goalInput');
+const wheelBtn = document.getElementById('wheelBtn');
+const prompts = [
+  'Broccoli & halloumi sheet-pan dinner',
+	'Crispy mince tacos with lime yogurt',
+	'Charred chicken Caesar with crunchy chickpeas',
+	'Simple seed-based pesto pasta',
+	'Gochujang veggie rice bowls',
+	'Sheet-pan halloumi & veggies',
+  'Spicy lentil & sweet potato stew',
+  'Mediterranean quinoa salad with feta',
+  'Roasted vegetable & hummus wrap',
+  'Stir-fry with tofu and peanut sauce',
+  'Zucchini noodles with avocado pesto'];
+
+if (lucky && goalInput) {
+  lucky.addEventListener('click', () => {
+    const pick = prompts[Math.floor(Math.random()*prompts.length)];
+    goalInput.value = pick;
+    showTab('request');
+    goalInput.focus();
+  });
+}
+
+// ============================================================================
+// DOM Content Loaded Handler
+// ============================================================================
+document.addEventListener("DOMContentLoaded", () => {
+  const root = document.documentElement;
+  const themeToggle = document.getElementById('themeToggle');
+  const savedTheme = localStorage.getItem('theme');
+  if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
+  function toggleTheme(){
+    const next = (root.getAttribute('data-theme') === 'dark') ? '' : 'dark';
+    if (next) root.setAttribute('data-theme', next); else root.removeAttribute('data-theme');
+    localStorage.setItem('theme', next);
+  }
+  themeToggle?.addEventListener('click', toggleTheme);
+
+  const tabs = Array.from(document.querySelectorAll('.tab'));
+  const panels = {
+    request: document.getElementById('tab-request'),
+    goalIngredients: document.getElementById('tab-goalIngredients'),
+    recipes: document.getElementById('tab-recipes'),
+    singleRecipe: document.getElementById('tab-single-recipe'),
+    reflections: document.getElementById('tab-reflections'),
+  };
+  function showTab(name) {
+    tabs.forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
+    Object.entries(panels).forEach(([k, el]) => { if(!el) return; el.hidden = k !== name; });
+  }
+  showTab('request');
+  tabs.forEach(btn => btn.addEventListener('click', () => showTab(btn.dataset.tab)));
+
+  const lucky = document.getElementById('lucky');
+  const goalInput = document.getElementById('goalInput');
+  const wheelBtn = document.getElementById('wheelBtn');
+  const wheelModal = document.getElementById('wheelModal');
+  const spinBtn = document.getElementById('spinBtn');
+  const closeWheel = document.getElementById('closeWheel');
+
+  const prompts = [
+    'Broccoli & halloumi sheet-pan dinner',
+    'Crispy mince tacos with lime yogurt',
+    'Charred chicken Caesar with crunchy chickpeas',
+    'Simple seed-based pesto pasta',
+    'Gochujang veggie rice bowls',
+    'Sheet-pan halloumi & veggies',
+    'Spicy lentil & sweet potato stew',
+    'Mediterranean quinoa salad with feta',
+    'Roasted vegetable & hummus wrap',
+    'Stir-fry with tofu and peanut sauce',
+    'Zucchini noodles with avocado pesto'
+  ];
+
+  if (lucky && goalInput) {
+    lucky.addEventListener('click', () => {
+      const pick = prompts[Math.floor(Math.random()*prompts.length)];
+      goalInput.value = pick;
+      showTab('request');
+      goalInput.focus();
+    });
+  }
+
+  let wheel;
+  wheelBtn?.addEventListener('click', () => {
+    wheelModal.style.display = 'flex';
+    initWheel();
+  });
+  closeWheel?.addEventListener('click', () => wheelModal.style.display = 'none');
+
+  function initWheel() {
+  // Full recipe names
+  const recipes = [
+    'Broccoli & halloumi sheet-pan dinner',
+    'Crispy mince tacos with lime yogurt',
+    'Charred chicken Caesar with crunchy chickpeas',
+    'Simple seed-based pesto pasta',
+    'Gochujang veggie rice bowls',
+    'Sheet-pan halloumi & veggies',
+    'Spicy lentil & sweet potato stew',
+    'Mediterranean quinoa salad with feta',
+    'Roasted vegetable & hummus wrap',
+    'Stir-fry with tofu and peanut sauce',
+    'Zucchini noodles with avocado pesto'
+  ];
+
+  // Short display labels (must match the same order)
+  const shortLabels = [
+    'Halloumi',
+    'Tacos',
+    'Caesar',
+    'Pesto',
+    'Rice Bowl',
+    'Sheet-Pan',
+    'Lentil',
+    'Quinoa',
+    'Wrap',
+    'Stir-Fry',
+    'Zoodles'
+  ];
+
+  wheel = new Winwheel({
+    canvasId: 'recipeWheel',
+    numSegments: recipes.length,
+    outerRadius: 160,
+    textAlignment: 'outer',
+    textOrientation: 'horizontal',
+    segments: recipes.map((full, i) => ({
+      fillStyle: getRandomPastel(),
+      text: shortLabels[i],
+      textFontSize: 16,
+      fullText: full // store full name
+    })),
+    animation: {
+      type: 'spinToStop',
+      duration: 6,
+      spins: 8,
+      callbackFinished: (segment) => handleWheelResult(segment.fullText || segment.text)
+    }
+  });
+}
+
+
+  function getRandomPastel() {
+    const hue = Math.floor(Math.random() * 360);
+    return `hsl(${hue}, 70%, 80%)`;
+  }
+
+  function handleWheelResult(resultText) {
+  fireConfetti();
+
+  if (goalInput) {
+    goalInput.value = resultText;
+  }
+
+  wheelModal.style.display = 'none';
+
+  showTab('request');
+}
+
+
+  spinBtn?.addEventListener('click', () => {
+    if (wheel) {
+      wheel.stopAnimation(false);
+      wheel.rotationAngle = 0;
+      wheel.draw();
+      wheel.startAnimation();
+    }
+  });
+function fireConfetti() {
+  const confettiEmojis = [
+    '🍋','🥕','🌶️','🍅','🥒','🧄','🥗','🫑',
+    '🍔','🍣','🍜','🌮','🍕','🍱','🍪','🍩',
+    '🍓','🍉','🍇','🥑','🍰','🍸','🎂','🥦','🥨','🍞'
+  ];
+
+  const count = 300;
+  const emojis = [];
+
+  for (const e of confettiEmojis) emojis.push(e);
+  for (let i = emojis.length; i < count; i++) {
+    emojis.push(confettiEmojis[Math.floor(Math.random() * confettiEmojis.length)]);
+  }
+
+  // Shuffle so they’re mixed randomly
+  emojis.sort(() => Math.random() - 0.5);
+
+  for (const emoji of emojis) {
+    const span = document.createElement('span');
+    span.textContent = emoji;
+    span.className = 'float-emoji';
+    const x = Math.random() * window.innerWidth;
+    const rot = Math.random() * 40 - 20;
+    span.style.left = x + 'px';
+    span.style.top = '-40px';
+    span.style.transform = `rotate(${rot}deg)`;
+    document.body.appendChild(span);
+    const duration = 2200 + Math.random() * 2000;
+    const endY = window.innerHeight + 80;
+    const drift = Math.random() * 120 - 60;
+    const start = performance.now();
+    const animate = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const y = -40 + t * endY;
+      const x2 = x + drift * Math.sin(t * 6.283);
+      span.style.transform = `translate(${x2 - x}px, ${y}px) rotate(${rot + t * 180}deg)`;
+      span.style.opacity = String(1 - t);
+      if (t < 1) requestAnimationFrame(animate);
+      else span.remove();
+    };
+    requestAnimationFrame(animate);
+  }
+}
+
+document.getElementById('partyBtn')?.addEventListener('click', fireConfetti);
+
+}); 
+
+// ============================================================================
+// Recipe Detail Tab
+// ============================================================================
+const recipesData = {{ memory.recipes_fetched | default([]) | tojson | safe }};
+const nutritionData = {{ memory.nutrition_values | default([]) | tojson | safe }};
+const flattenedNutrition = Array.isArray(nutritionData[0]) ? nutritionData[0] : nutritionData;
+
+const recipesTab = document.getElementById('tab-recipes');
+const singleRecipeTab = document.getElementById('tab-single-recipe');
+const singleRecipeContent = document.getElementById('singleRecipeContent');
+const backBtn = document.getElementById('backToOverview');
+const quickToggle = document.getElementById('quickToggle');
+
+function getNutritionFor(recipe) {
+  if (!Array.isArray(flattenedNutrition)) return null;
+  return flattenedNutrition.find(n =>
+    recipe.title.trim().startsWith(n.title.split('(')[0].trim())
+  ) || null;
+}
+
+function renderRecipeDetail(recipe) {
+  const n = getNutritionFor(recipe);
+  const imgSrc = recipe.image && recipe.image.startsWith('http') ? recipe.image : 'https://dummyimage.com/600x400/cccccc/ffffff.png&text=🍅+No+Image';
+  let html = `
+    <h2>${recipe.title}</h2>
+    <img class="recipe" src="${imgSrc}" alt="Recipe image" onerror="this.src='https://dummyimage.com/600x400/cccccc/ffffff.png&text=🍝';" />
+    ${recipe.ready_in_minutes ? `<p><strong>⏱️ Ready in:</strong> ${recipe.ready_in_minutes} min</p>` : ""}
+    ${recipe.summary ? `<p><strong>✨ Highlight:</strong> ${recipe.summary}</p>` : ""}
+    <h3>🧄 Ingredients</h3>
+    <ul style="margin:0; padding-left:18px;">${recipe.ingredients.map(i => `<li>${i}</li>`).join("")}</ul>
+    <h3 style="margin-top:14px;">📝 Instructions</h3>
+    <div style="white-space:pre-line; line-height:1.5;">${recipe.instructions}</div>
+  `;
+  if (n) {
+  html += `
+    <h3 style="margin-top:14px;">🥦 Nutrition Info</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;">
+      <div>
+        <p><strong>Calories:</strong> ${n.calories} kcal</p>
+        <p><strong>Protein:</strong> ${n.protein_g} g</p>
+        <p><strong>Carbs:</strong> ${n.carbs_g} g</p>
+        <p><strong>Fat:</strong> ${n.fat_g} g</p>
+      </div>
+      <canvas id="nutritionChart" width="300" height="200"></canvas>
+    </div>
+    <p><strong>Summary:</strong> ${n.summary}</p>
+    <p><strong>Health Verdict:</strong> ${n.health_verdict}</p>
+  `;
+}
+
+  singleRecipeContent.innerHTML = html;
+    if (n) {
+    const ctx = document.getElementById('nutritionChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['Calories', 'Protein (g)', 'Carbs (g)', 'Fat (g)'],
+        datasets: [{
+          label: 'Nutritional Breakdown',
+          data: [n.calories, n.protein_g, n.carbs_g, n.fat_g],
+          backgroundColor: ['#74c69d','#52b788','#40916c','#2d6a4f'],
+          borderRadius: 8
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true } },
+        animation: { duration: 800, easing: 'easeOutQuart' }
+      }
+    });
+  }
+
+}
+
+recipesTab?.querySelectorAll('.recipe-block').forEach(card => {
+  card.addEventListener('click', () => {
+    const idx = card.dataset.index;
+    if (!idx) return;
+    const recipe = recipesData[idx];
+    if (!recipe) return;
+    currentRecipe = recipe;
+    renderRecipeDetail(recipe);
+    showTab('singleRecipe');
+  });
+});
+
+backBtn?.addEventListener('click', () => showTab('recipes'));
+
+let currentRecipe = null;
+
+document.getElementById("downloadPDF").addEventListener("click", () => {
+  if (!currentRecipe) return;
+
+  const params = new URLSearchParams();
+  params.append("title", currentRecipe.title);
+
+  currentRecipe.ingredients.forEach(i => {
+    params.append("ingredient", i);
+  });
+
+  const textInstructions = currentRecipe.instructions.replace(/<[^>]*>/g, "");
+
+  params.append("instructions", textInstructions);
+
+  const nutrition = getNutritionFor(currentRecipe);
+  if (nutrition) {
+    params.append("calories", nutrition.calories);
+    params.append("protein_g", nutrition.protein_g);
+    params.append("carbs_g", nutrition.carbs_g);
+    params.append("fat_g", nutrition.fat_g);
+    params.append("summary", nutrition.summary || "");
+    params.append("health_verdict", nutrition.health_verdict || "");
+  }
+
+  window.location = "/download_recipe?" + params.toString();
+});
+
+// ============================================================================
+// Image Upload Preview
+// ============================================================================
+const fileInput = document.getElementById('ingredientImage');
+const dropZone = document.getElementById('dropZone');
+const preview = document.getElementById('imagePreview');
+const placeholder = document.getElementById('uploadPlaceholder');
+
+if (dropZone && fileInput) {
+  // Handle drag and drop
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.add('dragover');
+  });
+
+  dropZone.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.remove('dragover');
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      fileInput.files = dataTransfer.files;
+      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  });
+
+  // Handle file input change (from file dialog selection)
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      showPreview(file);
+    }
+  });
+
+  dropZone.addEventListener('click', (e) => {
+    if (!fileInput.files || fileInput.files.length === 0) {
+      fileInput.value = '';
+    }
+  });
+
+  function showPreview(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      preview.src = e.target.result;
+      preview.hidden = false;
+      requestAnimationFrame(() => preview.classList.add('visible'));
+      if (placeholder) placeholder.style.opacity = '0';
+      setTimeout(() => placeholder.style.display = 'none', 300);
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+
+
+</script>
+
+</body>
+</html>
